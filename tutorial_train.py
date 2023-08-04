@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from tutorial_dataset import MyDataset
 from cldm.logger import ImageLogger
 from cldm.model import create_model, load_state_dict
+import torch
 
 
 # Configs
@@ -32,4 +33,5 @@ trainer = pl.Trainer(gpus=1, precision=32, callbacks=[logger])
 
 
 # Train!
-trainer.fit(model, dataloader)
+with torch.cuda.amp.autocast():
+    trainer.fit(model, dataloader)
