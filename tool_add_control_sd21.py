@@ -48,3 +48,6 @@ for k in scratch_dict.keys():
 model.load_state_dict(target_dict, strict=True)
 torch.save(model.state_dict(), output_path)
 print('Done.')
+
+
+# python tool_add_control_sd21.py /export/data/vislearn/rother_subgroup/feiden/models/pretrained/stable_diffusion/v2-1_512-ema-pruned.ckpt /export/data/vislearn/rother_subgroup/feiden/models/pretrained/ControlNet/control_sd21_ini.ckpt 
