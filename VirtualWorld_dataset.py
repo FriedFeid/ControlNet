@@ -1,8 +1,8 @@
 import torch
 import os
 import csv 
-# import OpenEXR
-# import Imath 
+import OpenEXR
+import Imath 
 import numpy as np
 
 from glob import glob 
@@ -26,11 +26,13 @@ class BlockWorld(Dataset):
 
     '''
 
-    def __init__(self, root_folder, transform = None):
+    def __init__(self, root_folder, control= ['Depth'],  transform = None):
         '''
         Args: 
             root_folder: str (Path to Generated_Data folder)
                 --> Contains: Depth/, Distance_Map/, Edges/, Env_Maps/, Render/, SpikySphere/, Labels.csv
+            control: list of Strings: [Depth, DisMap, Edges, SSphere, Env]
+                --> deafult : ['Depth']
             
             transform: Callable (optional, Transformation which schould be applied to data)
         
@@ -47,22 +49,31 @@ class BlockWorld(Dataset):
         self.root_folder = root_folder
         self.transform = transform
 
-        self.Env_Maps_folder = os.path.join(self.root_folder, 'Env_Maps')
-        self.Depth_folder = os.path.join(self.root_folder, 'Depth')
-        self.Distance_Map_folder = os.path.join(self.root_folder, 'Distance_Map')
-        self.Edges_folder = os.path.join(self.root_folder, 'Edges')
-        self.Render_folder = os.path.join(self.root_folder, 'Render')
-        self.SpikySphere_folder = os.path.join(self.root_folder, 'SpikySphere')
-
         self.Labels = self.__load_labels__()
         
+        self.Render_folder = os.path.join(self.root_folder, 'Render')
         self.Renders = natsorted(glob(os.path.join(self.Render_folder, 'Render_*.png') ))
-        self.Depths = natsorted(glob(os.path.join(self.Depth_folder, 'Depth_*.png'))) 
-        self.Distances = natsorted(glob(os.path.join(self.Distance_Map_folder, 'DisMap_*.png') ))
-        self.Edges = natsorted(glob(os.path.join(self.Edges_folder, 'Edges_*.png') ))
-        self.SpikySpheres = natsorted(glob(os.path.join(self.SpikySphere_folder, 'SSphere_*.png') ))
-        self.EnvMaps = natsorted(glob(os.path.join(self.Env_Maps_folder, 'Env_*.exr') ))
+        
+        self.hint_dic = {}
+        for key in ['Depth', 'DisMap', 'Edges', 'SSphere', 'Env']:
+            # Collecting all Folder Paths
+            if key == 'Env':
+                self.hint_dic[key+'_folder'] = os.path.join(self.root_folder, 'Env_Maps')
+            elif key == 'DisMap':
+                self.hint_dic[key+'_folder'] = os.path.join(self.root_folder, 'Distance_Map')
+            elif key == 'SSphere':
+                self.hint_dic[key+'_folder'] = os.path.join(self.root_folder, 'SpikySphere')
+            else: 
+                self.hint_dic[key+'_folder'] = os.path.join(self.root_folder, key)
+            # Loading paths to Images
+            if key == 'Env':
+                self.hint_dic[key] = natsorted(glob(os.path.join(self.hint_dic[key+'_folder'], key + '_*.exr'))) 
+            else: 
+                self.hint_dic[key] = natsorted(glob(os.path.join(self.hint_dic[key+'_folder'], key + '_*.png')))
+        
         self.consistant = self.__consistant__()
+
+        self.control = control
      
     def __len__(self):
         '''
@@ -77,19 +88,24 @@ class BlockWorld(Dataset):
         returns:   
             consitant: bool 
         '''
-        if (len(self.Renders) == len(self.Depths)) & (
-            len(self.Depths) == len(self.Distances)) & (
-            len(self.Distances) == len(self.Edges)) & (
-            len(self.Edges) == len(self.SpikySpheres)):
-            return True
-        else: 
+        amount_data = len(self.Renders)
+        consis = True 
+        if amount_data != len(self.Labels):
+            consis = False
+
+        for key in ['Depth', 'DisMap', 'Edges', 'SSphere', 'Env']:
+            if amount_data != len(self.hint_dic[key]):
+                consis = False
+        
+        if not consis:
             print('WARNING: There are inconsitencys in the datase: ')
-            print(f'Renders: {len(self.Renders)}') 
-            print(f'Dephts: {len(self.Depths)}') 
-            print(f'Distance Maps: {len(self.Distances)}') 
-            print(f'Edge Maps: {len(self.Edges)}')
-            print(f'Spiky Spheres: {len(self.SpikySpheres)}') 
+            print(f'Renders: {len(self.Renders)}')
+            print(f'Labels: {len(self.Labels)}')
+            for key in ['Depth', 'DisMap', 'Edges', 'SSphere', 'Env']:
+                print(f'{key}: {len(self.hint_dic[key])}') 
             return False
+        else: 
+            return True
     
     def __load_labels__(self):
         '''
@@ -127,37 +143,32 @@ class BlockWorld(Dataset):
 
         return png 
 
-    # def __load_exr__(self, instance_index):
-    #     '''
-    #     loads exr data: 
+    def __load_exr__(self, exr_path):
+        '''
+        loads exr data: 
         
-    #     returns:
-    #         sun: torch.Tensor (Sun model)
-    #         sky: torch.Tensor (Sky model)
-    #         env: torch.Tensor (Environment map) 
-    #     '''
-    #     exr_s = {}
-    #     for key in ['Sun', 'Sky', 'Env']:
-    #         path = os.path.join(self.Env_Maps_folder, key+f'_{instance_index:06d}.exr')
-    #         exr = OpenEXR.InputFile(path)
-    #         dw = exr.header()['dataWindow']
-    #         size = (dw.max.y - dw.min.y + 1, dw.max.x - dw.min.x + 1)
+        returns:
+            sun: np.array (hight, width, channels)
+        '''
+        path = os.path.join(exr_path)
+        exr = OpenEXR.InputFile(path)
+        dw = exr.header()['dataWindow']
+        size = (dw.max.y - dw.min.y + 1, dw.max.x - dw.min.x + 1)
 
-    #         # Get correct data type
-    #         if exr.header()['channels']['R'] == Imath.Channel(Imath.PixelType(Imath.PixelType.HALF)):
-    #             dt = np.float16
-    #         else:
-    #             dt = np.float32
+        # Get correct data type
+        if exr.header()['channels']['R'] == Imath.Channel(Imath.PixelType(Imath.PixelType.HALF)):
+            dt = np.float16
+        else:
+            dt = np.float32
 
-    #         # Fill numpy array
-    #         arr = np.zeros((size[0], size[1], 3), dt)
-    #         for i, c in enumerate(['R', 'G', 'B']):
-    #             arr[:,:,i] = np.frombuffer(exr.channel(c), dt).reshape(size)
-            
-    #         exr = arr.astype(np.float32)
-    #         exr_s[key] = torch.from_numpy(np.moveaxis(exr, -1, 0))
+        # Fill numpy array
+        arr = np.zeros((size[0], size[1], 3), dt)
+        for i, c in enumerate(['R', 'G', 'B']):
+            arr[:,:,i] = np.frombuffer(exr.channel(c), dt).reshape(size)
+        
+        exr = arr.astype(np.float32)
                 
-    #     return exr_s['Sun'], exr_s['Sky'], exr_s['Env']
+        return exr
 
     def __getitem__(self, idx):
         '''
@@ -177,27 +188,51 @@ class BlockWorld(Dataset):
         
 
         # Normalize traget image to [-1, 1]
-        render = np.asarray(Image.open(os.path.join(self.Render_folder, self.Renders[idx])), dtype=np.float32)/127.5 - 1.0
-        
+        render = np.asarray(Image.open( self.Renders[idx] ), dtype=np.float32)/127.5 - 1.0
+
         # Load Hint images
-        depth = self.__load_PNG__(os.path.join(self.Depth_folder, self.Depths[idx]))
-        edge = self.__load_PNG__(os.path.join(self.Edges_folder, self.Edges[idx]))
-        distance_map = self.__load_PNG__(os.path.join(self.Distance_Map_folder, self.Distances[idx]))
-        spiky_sphere = self.__load_PNG__(os.path.join(self.SpikySphere_folder, self.SpikySpheres[idx]))
-        
-        #TODO: please update this so that it is more consistant
+        for i, key in enumerate(self.control):
+            if i == 0:
+                if key == 'Env':
+                    hint_ = self.__load_exr__( self.hint_dic[key][idx] )
+                else: 
+                    hint_ = self.__load_PNG__( self.hint_dic[key][idx] )
 
-        keys = self.EnvMaps[idx].split('.exr')[0]
-        keys = keys.split('/')[-1]
+                # reshaping if wrong size 
+                # TODO: make this nicer
+                if hint_.shape == (128, 256, 3):
+                    hint_temp = np.zeros_like(render)
+                    hint_temp[192:320, 128:384, :] = hint_
+                    hint_ = hint_temp
 
-        return dict(jpg=render, txt=self.Labels[keys]['Prompt'], hint=depth)
+            else: 
+                if key == 'Env':
+                    temp = self.__load_exr__( self.hint_dic[key][idx] )
+                else: 
+                    temp = self.__load_PNG__( self.hint_dic[key][idx] )
+
+                if temp.shape == (128, 256, 3):
+                    hint_temp = np.zeros_like(render)
+                    hint_temp[192:320, 128:384, :] = temp
+                    temp = hint_temp
+
+                hint_ = np.concatenate((hint_, temp), axis=2)
+            
+
+        # Get key
+        keys = self.hint_dic['Env'][idx].split('.exr')[0]
+        if '/' in keys:
+            keys = keys.split('/')[-1]
+
+        return dict(jpg=render, txt=self.Labels[keys]['Prompt'], hint=hint_)
 
 
 # from torch.utils.data import DataLoader
-# dataset = BlockWorld('/export/data/vislearn/rother_subgroup/feiden/data/ControlNet/training/Generated_Data')
+# dataset = BlockWorld('/export/data/vislearn/rother_subgroup/feiden/data/ControlNet/training/Generated_Data', 
+#                      ['Env'])
 # dataloader = DataLoader(dataset, num_workers=0, batch_size=4, shuffle=True)
 
 # for i , data_dic in enumerate(dataloader):
 #     if i == 3: 
 #         break
-#     print(data_dic['txt'], data_dic['jpg'].shape)
+#     print(data_dic['txt'], data_dic['jpg'].shape, data_dic['hint'].shape)
