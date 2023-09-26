@@ -33,7 +33,7 @@ checkpoint_callback_top_model = ModelCheckpoint(filename='top_model',
                                                 monitor='train/loss_epoch',
                                                 mode='min', )
 
-dataset = BlockWorld('/export/data/vislearn/rother_subgroup/feiden/models/pretrained/ControlNet/training/Generated_Data')
+dataset = BlockWorld('/export/data/vislearn/rother_subgroup/feiden/data/ControlNet/training/Generated_Data')
 dataloader = DataLoader(dataset, num_workers=0, batch_size=batch_size, shuffle=True)
 logger = ImageLogger(batch_frequency=logger_freq)
 trainer = pl.Trainer(gpus=1, precision=32, callbacks=[logger, checkpoint_callback_top_model])

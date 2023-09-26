@@ -56,12 +56,12 @@ class BlockWorld(Dataset):
 
         self.Labels = self.__load_labels__()
         
-        self.Renders = natsorted(glob('Render_*.png', root_dir = self.Render_folder))
-        self.Depths = natsorted(glob('Depth_*.png', root_dir = self.Depth_folder )) 
-        self.Distances = natsorted(glob('DisMap_*.png', root_dir = self.Distance_Map_folder))
-        self.Edges = natsorted(glob('Edges_*.png', root_dir = self.Edges_folder))
-        self.SpikySpheres = natsorted(glob('SSphere_*.png', root_dir = self.SpikySphere_folder))
-        self.EnvMaps = natsorted(glob('Env_*.exr', root_dir = self.Env_Maps_folder))
+        self.Renders = natsorted(glob(os.path.join(self.Render_folder, 'Render_*.png') ))
+        self.Depths = natsorted(glob(os.path.join(self.Depth_folder, 'Depth_*.png'))) 
+        self.Distances = natsorted(glob(os.path.join(self.Distance_Map_folder, 'DisMap_*.png') ))
+        self.Edges = natsorted(glob(os.path.join(self.Edges_folder, 'Edges_*.png') ))
+        self.SpikySpheres = natsorted(glob(os.path.join(self.SpikySphere_folder, 'SSphere_*.png') ))
+        self.EnvMaps = natsorted(glob(os.path.join(self.Env_Maps_folder, 'Env_*.exr') ))
         self.consistant = self.__consistant__()
      
     def __len__(self):
@@ -185,7 +185,19 @@ class BlockWorld(Dataset):
         distance_map = self.__load_PNG__(os.path.join(self.Distance_Map_folder, self.Distances[idx]))
         spiky_sphere = self.__load_PNG__(os.path.join(self.SpikySphere_folder, self.SpikySpheres[idx]))
         
+        #TODO: please update this so that it is more consistant
+
         keys = self.EnvMaps[idx].split('.exr')[0]
+        keys = keys.split('/')[-1]
 
         return dict(jpg=render, txt=self.Labels[keys]['Prompt'], hint=depth)
 
+
+# from torch.utils.data import DataLoader
+# dataset = BlockWorld('/export/data/vislearn/rother_subgroup/feiden/data/ControlNet/training/Generated_Data')
+# dataloader = DataLoader(dataset, num_workers=0, batch_size=4, shuffle=True)
+
+# for i , data_dic in enumerate(dataloader):
+#     if i == 3: 
+#         break
+#     print(data_dic['txt'], data_dic['jpg'].shape)
