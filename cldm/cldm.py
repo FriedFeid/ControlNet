@@ -354,11 +354,31 @@ class ControlLDM(LatentDiffusion):
 
         log = dict()
         z, c = self.get_input(batch, self.first_stage_key, bs=N)
-        c_cat, c = c["c_concat"][0][:N], c["c_crossattn"][0][:N]
+        c_cat, c = c["c_concat"][0][:N], c["c_crossattn"][0][:N] # c_cat.shape [4, 6, 512, 512] [batch, channels, hight, width]
         N = min(z.shape[0], N)
         n_row = min(z.shape[0], n_row)
         log["reconstruction"] = self.decode_first_stage(z)
-        log["control"] = c_cat * 2.0 - 1.0
+        
+        if c_cat.size()[1] >3: 
+            if c_cat.size()[1] % 3 == 0: 
+                c_temp = c_cat * 2.0 - 1.0
+                batch_grid =[]
+                for j in range(c_cat.size()[0]):
+                    controls = []
+                    for i in range(int(c_cat.size()[1] / 3)):
+                        controls.append(c_temp[j, i*3:(i+1)*3, :, :])
+                    grid = make_grid(controls, 1)
+                    batch_grid.append(grid)
+
+                log['control'] = make_grid(batch_grid) 
+
+            else: 
+                print('Warning: Something went wrong with the control Channels')
+                print('     Stripped down logging to first 3 channels')
+                log['control'] = c_cat[:, :3, :, :] * 2.0 - 1.0
+
+        else: 
+            log["control"] = c_cat * 2.0 - 1.0
         log["conditioning"] = log_txt_as_img((512, 512), batch[self.cond_stage_key], size=16)
 
         if plot_diffusion_rows:
