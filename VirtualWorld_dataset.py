@@ -199,7 +199,7 @@ class BlockWorld(Dataset):
                     hint_ = self.__load_PNG__( self.hint_dic[key][idx] )
 
                 # reshaping if wrong size 
-                # TODO: make this nicer
+                # TODO: make this nicer Does not for Distance map: dimensions (hight, witdh)
                 if hint_.shape == (128, 256, 3):
                     hint_temp = np.zeros_like(render)
                     hint_temp[192:320, 128:384, :] = hint_
