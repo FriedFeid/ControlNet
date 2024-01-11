@@ -142,3 +142,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+models/.nfs000000029b0c46f20000a21a
+
+generate_imgs.ipynb
+Test_size.ipynb
